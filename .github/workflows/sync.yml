@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
   paths-ignore:
-    - "projects.json"
+      - "projects.json"
+      - "icons/**"
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
