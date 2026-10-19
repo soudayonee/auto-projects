@@ -1,6 +1,10 @@
 name: Auto Sync Projects
 
 on:
+  push:
+    branches: [main]
+  paths-ignore:
+    - "projects.json"
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
@@ -20,6 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
 
       - name: Jalankan skrip untuk mencatat data proyek dari GitHub & Vercel
         env:
