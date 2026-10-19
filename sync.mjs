@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 
 const repoName = "auto-projects";
+const projectsSchemaFile = "project-schema.json";
 
 const GH_TOKEN = process.env.GH_PAT;
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN;
@@ -75,7 +76,7 @@ async function getAllGithubRepos() {
 }
 
 async function getProjectSchema(owner, repoName) {
-  const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/contents/projects-schema.json`;
+  const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/contents/${projectsSchemaFile}`;
   const res = await fetch(endpoint, { headers: ghHeaders });
 
   if (res.status === 404) return null;
@@ -86,7 +87,7 @@ async function getProjectSchema(owner, repoName) {
   try {
     return JSON.parse(content);
   } catch {
-    console.warn(`⚠️ Format JSON salah di ${repoName}/projects-schema.json`);
+    console.warn(`⚠️ Format JSON salah di ${repoName}/${projectsSchemaFile}`);
     return null;
   }
 }
