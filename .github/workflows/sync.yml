@@ -3,9 +3,7 @@ name: Auto Sync Projects
 on:
   push:
     branches: [main]
-  paths-ignore:
-      - "projects.json"
-      - "icons/**"
+    paths-ignore: ["projects.json", "icons/**"]
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
