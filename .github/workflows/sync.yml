@@ -32,14 +32,14 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: node sync.mjs
 
-      - name: Auto Commit & Push jika ada perubahan di projects.json
+      - name: Auto Commit & Push jika ada perubahan di projects.json atau icons/
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add projects.json
+          git add projects.json icons/
           if git diff --staged --quiet; then
-            echo "Tidak ada perubahan data proyek."
+            echo "Tidak ada perubahan data proyek atau ikon."
           else
-            git commit -m "chore: auto-update projects.json"
+            git commit -m "chore: auto-update projects.json and project icons"
             git push
           fi

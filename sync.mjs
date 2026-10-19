@@ -1,6 +1,7 @@
 import fs from "fs/promises";
+import path from "path";
 
-const repoName = "auto-projects";
+const centralRepoName = "auto-projects";
 const projectsSchemaFile = "project-schema.json";
 
 const GH_TOKEN = process.env.GH_PAT;
@@ -8,7 +9,7 @@ const VERCEL_TOKEN = process.env.VERCEL_TOKEN;
 
 if (!GH_TOKEN || !VERCEL_TOKEN) {
   console.error(
-    "❌ Github Personal Access Token (GH_PAT) dan Vercel Token (VERCEL_TOKEN) tidak ada di Github Secrets!",
+    "Github Personal Access Token (GH_PAT) dan Vercel Token (VERCEL_TOKEN) tidak ada di Github Secrets!",
   );
   process.exit(1);
 }
@@ -24,6 +25,7 @@ const vercelHeaders = {
 };
 
 const GITHUB_API_BASE = "https://api.github.com";
+const ICONS_DIR = "icons";
 const VERCEL_API_BASE = "https://api.vercel.com";
 const VERCEL_PROJECTS_LIMIT = 100;
 
@@ -39,7 +41,7 @@ async function getVercelReadyProjects() {
 
   const vercelMap = new Map();
   for (const proj of data.projects || []) {
-    const repoName = proj.link?.repo || proj.name;
+    const targetRepoName = proj.link?.repo || proj.name;
     const prodTarget = proj.targets?.production;
 
     if (prodTarget && prodTarget.readyState === "READY") {
@@ -48,7 +50,7 @@ async function getVercelReadyProjects() {
       const domain = hasAlias ? prodTarget.alias[0] : prodTarget.url;
       const prodUrl = `https://${domain}`;
 
-      vercelMap.set(repoName.toLowerCase(), {
+      vercelMap.set(targetRepoName.toLowerCase(), {
         vercelProjectId: proj.id,
         url: prodUrl,
         framework: proj.framework,
@@ -87,8 +89,57 @@ async function getProjectSchema(owner, repoName) {
   try {
     return JSON.parse(content);
   } catch {
-    console.warn(`⚠️ Format JSON salah di ${repoName}/${projectsSchemaFile}`);
+    console.warn(`Format JSON salah di ${repoName}/${projectsSchemaFile}`);
     return null;
+  }
+}
+
+async function copyProjectIcon(owner, repoName, repoId, iconPath) {
+  if (!iconPath) return { localPath: null, rawUrl: "" };
+
+  if (iconPath.startsWith("http://") || iconPath.startsWith("https://")) {
+    return { localPath: null, rawUrl: iconPath };
+  }
+
+  const cleanPath = iconPath.replace(/^\/+/, "");
+  const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/contents/${cleanPath}`;
+
+  const res = await fetch(endpoint, {
+    headers: { ...ghHeaders, Accept: "application/vnd.github.raw+json" },
+  });
+
+  if (!res.ok) {
+    console.warn(
+      `Gagal mengambil ikon proyek dari ${repoName}/${cleanPath}: ${res.statusText}`,
+    );
+    return { localPath: null, rawUrl: "" };
+  }
+
+  const ext = path.extname(cleanPath) || ".png";
+  const filename = `${repoId}${ext}`;
+  const filePath = `${ICONS_DIR}/${filename}`;
+
+  const arrayBuffer = await res.arrayBuffer();
+  await fs.mkdir(ICONS_DIR, { recursive: true });
+  await fs.writeFile(filePath, Buffer.from(arrayBuffer));
+
+  const rawUrl = `https://raw.githubusercontent.com/${owner}/${centralRepoName}/main/${ICONS_DIR}/${filename}`;
+  return { localPath: filename, rawUrl };
+}
+
+async function cleanupOrphanedIcons(activeIconFiles) {
+  try {
+    const files = await fs.readdir(ICONS_DIR);
+    for (const file of files) {
+      if (!activeIconFiles.has(file)) {
+        await fs.unlink(path.join(ICONS_DIR, file));
+        console.log(
+          `Berhasil menghapus ikon lama: ${file} dari folder ${ICONS_DIR}`,
+        );
+      }
+    }
+  } catch {
+    console.warn(`Gagal untuk membersihkan ikon lama di folder ${ICONS_DIR}`);
   }
 }
 
@@ -100,19 +151,25 @@ async function main() {
   const repos = await getAllGithubRepos();
 
   const finalProjects = [];
+  const activeIconFiles = new Set();
 
   for (const repo of repos) {
-    if (repo.name.toLowerCase() === repoName.toLowerCase()) continue;
+    if (repo.name.toLowerCase() === centralRepoName.toLowerCase()) continue;
 
     const vercelInfo = vercelMap.get(repo.name.toLowerCase());
     if (!vercelInfo) continue;
 
     const schema = await getProjectSchema(repo.owner.login, repo.name);
-    if (!schema) continue;
+    if (!schema || schema.listed === false) continue;
 
-    if (schema.listed === false) continue;
+    const { localPath, rawUrl } = await copyProjectIcon(
+      repo.owner.login,
+      repo.name,
+      repo.id,
+      schema.icon,
+    );
 
-    console.log(`Berhasil memindahkan proyek: ${repo.name}`);
+    if (localPath) activeIconFiles.add(localPath);
 
     finalProjects.push({
       id: repo.id,
@@ -120,7 +177,7 @@ async function main() {
       title: schema.title || repo.name,
       description: schema.desk || schema.description || repo.description || "",
       stack: Array.isArray(schema.stack) ? schema.stack : [],
-      icon: schema.icon || "",
+      icon: rawUrl || "",
       url: schema.url || vercelInfo.url || repo.homepage || "",
       githubUrl: repo.private ? null : repo.html_url,
       public: !repo.private,
@@ -136,8 +193,10 @@ async function main() {
 
   await fs.writeFile("projects.json", JSON.stringify(finalProjects, null, 2));
   console.log(
-    `Berhasil memindahkan ${finalProjects.length} proyek ke file projects.json`,
+    `Berhasil mencatat ${finalProjects.length} proyek ke projects.json dan menyalin ikon proyek ke folder ${ICONS_DIR}`,
   );
+
+  await cleanupOrphanedIcons(activeIconFiles);
 }
 
 main().catch((err) => {
