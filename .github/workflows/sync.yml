@@ -1,0 +1,40 @@
+name: Auto Sync Projects
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+  repository_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-projects:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo auto-projects
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Jalankan skrip untuk mencatat data proyek dari GitHub & Vercel
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node sync.mjs
+
+      - name: Auto Commit & Push jika ada perubahan di projects.json
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add projects.json
+          if git diff --staged --quiet; then
+            echo "Tidak ada perubahan data proyek."
+          else
+            git commit -m "chore: auto-update projects.json"
+            git push
+          fi
