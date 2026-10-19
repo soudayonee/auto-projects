@@ -23,7 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
 
       - name: Jalankan skrip untuk mencatat data proyek dari GitHub & Vercel
         env:
@@ -35,6 +34,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p icons
           git add projects.json icons/
           if git diff --staged --quiet; then
             echo "Tidak ada perubahan data proyek atau ikon."
