@@ -191,14 +191,14 @@ async function main() {
     const schema = await getProjectSchema(repo.owner.login, repo.name);
     if (!schema || schema.listed === false) continue;
 
-    const { savedFilename, rawUrl } = await copyProjectIcon(
+    const { localPath, rawUrl } = await copyProjectIcon(
       repo.owner.login,
       repo.name,
       repo.id,
       schema.icon,
     );
 
-    if (savedFilename) activeIconFiles.add(savedFilename);
+    if (localPath) activeIconFiles.add(localPath);
 
     const vercelInfo = vercelMap.get(repo.name.toLowerCase());
 
