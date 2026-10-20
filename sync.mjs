@@ -37,20 +37,53 @@ async function getVercelReadyProjects() {
     },
   );
   if (!res.ok) throw new Error(`Gagal membaca API Vercel: ${res.statusText}`);
-  const data = await res.json();
+  let data = await res.json();
+  let projects = data.projects || [];
+
+  if (projects.length === 0) {
+    const teamRes = await fetch(`${VERCEL_API_BASE}/v2/teams`, {
+      headers: vercelHeaders,
+    });
+    const teamData = await teamRes.json();
+    const firstTeamId = teamData?.teams?.[0]?.id;
+    if (firstTeamId) {
+      console.log(
+        `Mendapatkan proyek dari tim Vercel dengan ID: ${firstTeamId}`,
+      );
+      const teamProjectsRes = await fetch(
+        `${VERCEL_API_BASE}/v10/projects?limit=${VERCEL_PROJECTS_LIMIT}&teamId=${firstTeamId}`,
+        {
+          headers: vercelHeaders,
+        },
+      );
+      if (!teamProjectsRes.ok) {
+        throw new Error(
+          `Gagal membaca proyek tim Vercel: ${teamProjectsRes.statusText}`,
+        );
+      }
+      const retryData = await teamProjectsRes.json();
+      projects = retryData.projects || [];
+    }
+  }
 
   const vercelMap = new Map();
-  for (const proj of data.projects || []) {
-    const targetRepoName = proj.link?.repo || proj.name;
-    const prodTarget = proj.targets?.production;
+  for (const proj of projects) {
+    let repoFullName = proj.link?.repo;
+    let repoName = proj.name;
 
+    if (repoFullName) {
+      const parts = repoFullName.split("/");
+      repoName = parts[parts.length - 1];
+    }
+
+    const prodTarget = proj.targets?.production;
     if (prodTarget && prodTarget.readyState === "READY") {
       const hasAlias =
         Array.isArray(prodTarget.alias) && prodTarget.alias.length > 0;
       const domain = hasAlias ? prodTarget.alias[0] : prodTarget.url;
       const prodUrl = `https://${domain}`;
 
-      vercelMap.set(targetRepoName.toLowerCase(), {
+      vercelMap.set(repoName.toLowerCase(), {
         vercelProjectId: proj.id,
         url: prodUrl,
         framework: proj.framework,
