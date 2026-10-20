@@ -3,7 +3,7 @@
     "id": 1122680529,
     "repoName": "kotonogi-api",
     "title": "Kotonogi API",
-    "description": "Public API untuk pembelajaran huruf Jepang (Hiragana & Katakana) beserta variasinya seperti Dakuten, Handakuten, dan Yoon. Seluruh data bersifat statis dan menggunakan SVG untuk gambar serta animasi. Asset SVG mempunyai copyright yang bisa diperiksa di bagian atas file masing-masing.",
+    "description": "API JSON statis yang menyediakan huruf jepang seperti Hiragana, Katakana. dan termasuk variasi dakuten, handakuten, dan yoon.",
     "stack": [
       "Node.js",
       "Express.js",
@@ -16,5 +16,25 @@
     "listed": true,
     "stars": 2,
     "lastDeployedAt": "2026-10-19T17:00:02.682Z"
+  },
+  {
+    "id": 1339863151,
+    "repoName": "hirostore-svelte",
+    "title": "HiRo Store Indonesia | Aman dan Terpercaya",
+    "description": "HiRo Store adalah toko online terpercaya yang menyediakan berbagai produk digital murah. Nikmati layanan cepat dan aman untuk kebutuhanmu.",
+    "stack": [
+      "Svelte",
+      "TailwindCSS",
+      "Vite",
+      "TypeScript",
+      "Node.js"
+    ],
+    "icon": "https://raw.githubusercontent.com/soudayonee/auto-projects/main/icons/1339863151.jpg",
+    "url": "https://hirostore-svelte.vercel.app",
+    "githubUrl": null,
+    "public": false,
+    "listed": true,
+    "stars": 0,
+    "lastDeployedAt": "2026-10-19T16:08:23Z"
   }
 ]
