@@ -19,7 +19,7 @@
   },
   {
     "id": 1339863151,
-    "repoName": "hirostore",
+    "repoName": "hirostore-svelte",
     "title": "HiRo Store Indonesia | Aman dan Terpercaya",
     "description": "HiRo Store adalah toko online terpercaya yang menyediakan berbagai produk digital murah. Nikmati layanan cepat dan aman untuk kebutuhanmu.",
     "stack": [
@@ -30,7 +30,7 @@
       "Node.js"
     ],
     "icon": "https://raw.githubusercontent.com/soudayonee/auto-projects/main/icons/1339863151.jpg",
-    "url": "https://www.hirostore.my.id",
+    "url": "https://hirostore-svelte.vercel.app",
     "githubUrl": null,
     "public": false,
     "listed": true,
