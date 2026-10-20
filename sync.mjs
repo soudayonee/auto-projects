@@ -1,8 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
 
-const centralRepoName = "auto-projects";
-const projectsSchemaFile = "project-schema.json";
+const CENTRAL_REPO_NAME = "auto-projects";
+const PROJECT_SCHEMA_FILE = "project-schema.json";
+const ICONS_DIR = "icons";
+const GITHUB_API_BASE = "https://api.github.com";
+const VERCEL_API_BASE = "https://api.vercel.com";
+const PROJECTS_LIMIT = 100;
 
 const GH_TOKEN = process.env.GH_PAT;
 const VERCEL_TOKEN = process.env.VERCEL_TOKEN;
@@ -24,14 +28,9 @@ const vercelHeaders = {
   Authorization: `Bearer ${VERCEL_TOKEN}`,
 };
 
-const GITHUB_API_BASE = "https://api.github.com";
-const ICONS_DIR = "icons";
-const VERCEL_API_BASE = "https://api.vercel.com";
-const VERCEL_PROJECTS_LIMIT = 100;
-
 async function getVercelReadyProjects() {
   const res = await fetch(
-    `${VERCEL_API_BASE}/v10/projects?limit=${VERCEL_PROJECTS_LIMIT}`,
+    `${VERCEL_API_BASE}/v10/projects?limit=${PROJECTS_LIMIT}`,
     {
       headers: vercelHeaders,
     },
@@ -51,7 +50,7 @@ async function getVercelReadyProjects() {
         `Mendapatkan proyek dari tim Vercel dengan ID: ${firstTeamId}`,
       );
       const teamProjectsRes = await fetch(
-        `${VERCEL_API_BASE}/v10/projects?limit=${VERCEL_PROJECTS_LIMIT}&teamId=${firstTeamId}`,
+        `${VERCEL_API_BASE}/v10/projects?limit=${PROJECTS_LIMIT}&teamId=${firstTeamId}`,
         {
           headers: vercelHeaders,
         },
@@ -98,7 +97,7 @@ async function getAllGithubRepos() {
   let page = 1;
   const repos = [];
   while (true) {
-    const endpoint = `${GITHUB_API_BASE}/user/repos?per_page=100&page=${page}&affiliation=owner&sort=updated`;
+    const endpoint = `${GITHUB_API_BASE}/user/repos?per_page=${PROJECTS_LIMIT}&page=${page}&affiliation=owner&sort=updated`;
     const res = await fetch(endpoint, { headers: ghHeaders });
 
     if (!res.ok) throw new Error(`Gagal membaca API GitHub: ${res.statusText}`);
@@ -111,7 +110,7 @@ async function getAllGithubRepos() {
 }
 
 async function getProjectSchema(owner, repoName) {
-  const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/contents/${projectsSchemaFile}`;
+  const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/contents/${PROJECT_SCHEMA_FILE}`;
   const res = await fetch(endpoint, { headers: ghHeaders });
 
   if (res.status === 404) return null;
@@ -122,7 +121,7 @@ async function getProjectSchema(owner, repoName) {
   try {
     return JSON.parse(content);
   } catch {
-    console.warn(`Format JSON salah di ${repoName}/${projectsSchemaFile}`);
+    console.warn(`Format JSON salah di ${repoName}/${PROJECT_SCHEMA_FILE}`);
     return null;
   }
 }
@@ -156,7 +155,7 @@ async function copyProjectIcon(owner, repoName, repoId, iconPath) {
   await fs.mkdir(ICONS_DIR, { recursive: true });
   await fs.writeFile(filePath, Buffer.from(arrayBuffer));
 
-  const rawUrl = `https://raw.githubusercontent.com/${owner}/${centralRepoName}/main/${ICONS_DIR}/${filename}`;
+  const rawUrl = `https://raw.githubusercontent.com/${owner}/${CENTRAL_REPO_NAME}/main/${ICONS_DIR}/${filename}`;
   return { localPath: filename, rawUrl };
 }
 
@@ -187,36 +186,43 @@ async function main() {
   const activeIconFiles = new Set();
 
   for (const repo of repos) {
-    if (repo.name.toLowerCase() === centralRepoName.toLowerCase()) continue;
-
-    const vercelInfo = vercelMap.get(repo.name.toLowerCase());
-    if (!vercelInfo) continue;
+    if (repo.name.toLowerCase() === CENTRAL_REPO_NAME.toLowerCase()) continue;
 
     const schema = await getProjectSchema(repo.owner.login, repo.name);
     if (!schema || schema.listed === false) continue;
 
-    const { localPath, rawUrl } = await copyProjectIcon(
+    const { savedFilename, rawUrl } = await copyProjectIcon(
       repo.owner.login,
       repo.name,
       repo.id,
       schema.icon,
     );
 
-    if (localPath) activeIconFiles.add(localPath);
+    if (savedFilename) activeIconFiles.add(savedFilename);
+
+    const vercelInfo = vercelMap.get(repo.name.toLowerCase());
+
+    const fallbackUrl = `https://${repo.name.toLowerCase()}.vercel.app`;
+    const finalUrl =
+      schema.url ||
+      (vercelInfo ? vercelInfo.url : repo.homepage || fallbackUrl);
+    const finalDate = vercelInfo
+      ? vercelInfo.updatedAt
+      : repo.updated_at || new Date().toISOString();
 
     finalProjects.push({
       id: repo.id,
       repoName: repo.name,
       title: schema.title || repo.name,
-      description: schema.desk || schema.description || repo.description || "",
+      description: schema.description || repo.description || "",
       stack: Array.isArray(schema.stack) ? schema.stack : [],
       icon: rawUrl || "",
-      url: schema.url || vercelInfo.url || repo.homepage || "",
+      url: finalUrl,
       githubUrl: repo.private ? null : repo.html_url,
       public: !repo.private,
       listed: schema.listed ?? true,
       stars: repo.stargazers_count,
-      lastDeployedAt: vercelInfo.updatedAt,
+      lastDeployedAt: finalDate,
     });
   }
 
