@@ -287,6 +287,19 @@ async function main() {
       );
     const cachedProject = existingProjectMap.get(currentConfig?.id || repoId);
 
+    const isListed = currentConfig?.listed ?? true;
+    const checkPeriodically = currentConfig?.checkPeriodically ?? true;
+    const pinned = schema.pinned ?? currentConfig?.pinned ?? false;
+
+    const configData = {
+      id: repoId,
+      repoName: targetRepoName,
+      listed: isListed,
+      checkPeriodically,
+      pinned,
+      lastCheckedAt: new Date().toISOString(),
+    };
+
     if (currentConfig && currentConfig.listed === false) {
       updatedConfig.push(currentConfig);
       continue;
@@ -297,7 +310,7 @@ async function main() {
       currentConfig.checkPeriodically === false &&
       cachedProject
     ) {
-      updatedConfig.push(currentConfig);
+      updatedConfig.push(configData);
       finalProjects.push(cachedProject);
       if (cachedProject.icon && cachedProject.icon.includes(`/${ICONS_DIR}/`)) {
         activeIconFiles.add(path.basename(cachedProject.icon));
@@ -305,18 +318,7 @@ async function main() {
       continue;
     }
 
-    const isListed = currentConfig?.listed ?? true;
-    const checkPeriodically = currentConfig?.checkPeriodically ?? true;
-    const pinned = schema.pinned ?? currentConfig?.pinned ?? false;
-
-    updatedConfig.push({
-      id: repoId,
-      repoName: targetRepoName,
-      listed: isListed,
-      checkPeriodically,
-      pinned,
-      lastCheckedAt: new Date().toISOString(),
-    });
+    updatedConfig.push(configData);
 
     if (!isListed) continue;
 
