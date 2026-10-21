@@ -3,6 +3,8 @@ import path from "path";
 
 const CENTRAL_REPO_NAME = "auto-projects";
 const PROJECT_SCHEMA_FILE = "project-schema.json";
+const CONFIG_FILE = "projects-config.json";
+const PROJECTS_FILE = "projects.json";
 const ICONS_DIR = "icons";
 const GITHUB_API_BASE = "https://api.github.com";
 const VERCEL_API_BASE = "https://api.vercel.com";
@@ -27,6 +29,15 @@ const ghHeaders = {
 const vercelHeaders = {
   Authorization: `Bearer ${VERCEL_TOKEN}`,
 };
+
+async function loadJsonFile(filePath, defaultValue = []) {
+  try {
+    const content = await fs.readFile(filePath, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return defaultValue;
+  }
+}
 
 async function getVercelReadyProjects() {
   const res = await fetch(
@@ -76,18 +87,28 @@ async function getVercelReadyProjects() {
     }
 
     const prodTarget = proj.targets?.production;
-    if (prodTarget && prodTarget.readyState === "READY") {
+    if (prodTarget) {
       const hasAlias =
         Array.isArray(prodTarget.alias) && prodTarget.alias.length > 0;
       const domain = hasAlias ? prodTarget.alias[0] : prodTarget.url;
-      const prodUrl = `https://${domain}`;
+      const prodUrl = domain ? `https://${domain}` : null;
 
-      vercelMap.set(repoName.toLowerCase(), {
+      const info = {
         vercelProjectId: proj.id,
+        name: proj.name,
         url: prodUrl,
+        state: prodTarget.readyState || prodTarget.state,
         framework: proj.framework,
-        updatedAt: new Date(prodTarget.createdAt).toISOString(),
-      });
+        createdAt: proj.createdAt
+          ? new Date(proj.createdAt).toISOString()
+          : null,
+        updatedAt: prodTarget.createdAt
+          ? new Date(prodTarget.createdAt).toISOString()
+          : null,
+      };
+
+      vercelMap.set(repoName.toLowerCase(), info);
+      vercelMap.set(proj.name.toLowerCase(), info);
     }
   }
   return vercelMap;
@@ -113,8 +134,7 @@ async function getProjectSchema(owner, repoName) {
   const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/contents/${PROJECT_SCHEMA_FILE}`;
   const res = await fetch(endpoint, { headers: ghHeaders });
 
-  if (res.status === 404) return null;
-  if (!res.ok) return null;
+  if (res.status === 404 || !res.ok) return null;
 
   const data = await res.json();
   const content = Buffer.from(data.content, "base64").toString("utf-8");
@@ -126,7 +146,7 @@ async function getProjectSchema(owner, repoName) {
   }
 }
 
-async function copyProjectIcon(owner, repoName, repoId, iconPath) {
+async function copyProjectIcon(owner, repoName, projectId, iconPath) {
   if (!iconPath) return { localPath: null, rawUrl: "" };
 
   if (iconPath.startsWith("http://") || iconPath.startsWith("https://")) {
@@ -148,7 +168,7 @@ async function copyProjectIcon(owner, repoName, repoId, iconPath) {
   }
 
   const ext = path.extname(cleanPath) || ".png";
-  const filename = `${repoId}${ext}`;
+  const filename = `${projectId}${ext}`;
   const filePath = `${ICONS_DIR}/${filename}`;
 
   const arrayBuffer = await res.arrayBuffer();
@@ -175,7 +195,61 @@ async function cleanupOrphanedIcons(activeIconFiles) {
   }
 }
 
+async function getRepoLanguages(owner, repoName) {
+  const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/languages`;
+  const res = await fetch(endpoint, { headers: ghHeaders });
+
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const totalBytes = Object.values(data).reduce((sum, bytes) => sum + bytes, 0);
+
+  if (totalBytes === 0) return [];
+
+  return Object.entries(data).map(([language, bytes]) => ({
+    language,
+    percentage: Number(((bytes / totalBytes) * 100).toFixed(2)),
+  }));
+}
+
+function getProjectStatus(schema, repo, vercelInfo) {
+  if (schema.status) return schema.status;
+
+  if (repo.archived) return "archived";
+  if (repo.disabled) return "disabled";
+
+  if (vercelInfo?.state) {
+    const state = vercelInfo.state.toUpperCase();
+    if (state === "ERROR" || state === "CANCELED") return "error";
+    if (
+      state === "BUILDING" ||
+      state === "INITIALIZING" ||
+      state === "QUEUED"
+    ) {
+      return "building";
+    }
+  }
+
+  const lastUpdate = new Date(
+    vercelInfo?.updatedAt || repo.pushed_at || repo.updated_at,
+  );
+  const diffDays = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
+
+  if (diffDays > 180) return "maintenance";
+
+  return "active";
+}
+
 async function main() {
+  console.log("Membaca konfigurasi lokal dan cache proyek...");
+  const existingConfig = await loadJsonFile(CONFIG_FILE, []);
+  const existingProjects = await loadJsonFile(PROJECTS_FILE, []);
+
+  const configMap = new Map(existingConfig.map((item) => [item.id, item]));
+  const existingProjectMap = new Map(
+    existingProjects.map((item) => [item.id, item]),
+  );
+
   console.log("Sedang mengambil data proyek dari Vercel...");
   const vercelMap = await getVercelReadyProjects();
 
@@ -183,58 +257,166 @@ async function main() {
   const repos = await getAllGithubRepos();
 
   const finalProjects = [];
+  const updatedConfig = [];
   const activeIconFiles = new Set();
 
   for (const repo of repos) {
     if (repo.name.toLowerCase() === CENTRAL_REPO_NAME.toLowerCase()) continue;
 
-    const schema = await getProjectSchema(repo.owner.login, repo.name);
-    if (!schema || schema.listed === false) continue;
+    const currentConfig = configMap.get(repo.id);
+    const cachedProject = existingProjectMap.get(repo.id);
+
+    if (
+      currentConfig &&
+      currentConfig.checkPeriodically === false &&
+      cachedProject
+    ) {
+      updatedConfig.push(currentConfig);
+      if (currentConfig.listed !== false) {
+        finalProjects.push(cachedProject);
+        if (
+          cachedProject.icon &&
+          cachedProject.icon.includes(`/${ICONS_DIR}/`)
+        ) {
+          activeIconFiles.add(path.basename(cachedProject.icon));
+        }
+      }
+      continue;
+    }
+
+    const schema = (await getProjectSchema(repo.owner.login, repo.name)) || {};
+
+    const isListed =
+      currentConfig?.listed !== undefined
+        ? currentConfig.listed
+        : schema.listed !== undefined
+          ? schema.listed
+          : true;
+
+    const checkPeriodically = currentConfig?.checkPeriodically ?? true;
+    const pinned = schema.pinned ?? currentConfig?.pinned ?? false;
+
+    const targetRepoName = schema.repoName ?? repo.name;
+    const targetId = schema.id ?? repo.id;
+
+    updatedConfig.push({
+      id: targetId,
+      repoName: targetRepoName,
+      listed: isListed,
+      checkPeriodically,
+      pinned,
+      lastCheckedAt: new Date().toISOString(),
+    });
+
+    if (!isListed) continue;
+
+    const vercelInfo =
+      vercelMap.get(targetRepoName.toLowerCase()) ||
+      vercelMap.get(repo.name.toLowerCase());
 
     const { localPath, rawUrl } = await copyProjectIcon(
       repo.owner.login,
       repo.name,
-      repo.id,
+      targetId,
       schema.icon,
     );
 
     if (localPath) activeIconFiles.add(localPath);
 
-    const vercelInfo = vercelMap.get(repo.name.toLowerCase());
+    const finalStatus = getProjectStatus(schema, repo, vercelInfo);
 
-    const fallbackUrl = `https://${repo.name.toLowerCase()}.vercel.app`;
+    const fallbackUrl = `https://${targetRepoName.toLowerCase()}.vercel.app`;
     const finalUrl =
-      schema.url ||
-      (vercelInfo ? vercelInfo.url : repo.homepage || fallbackUrl);
-    const finalDate = vercelInfo
-      ? vercelInfo.updatedAt
-      : repo.updated_at || new Date().toISOString();
+      schema.url ?? vercelInfo?.url ?? (repo.homepage || fallbackUrl);
+
+    const finalCreatedAt =
+      schema.createdAt ??
+      vercelInfo?.createdAt ??
+      repo.created_at ??
+      new Date().toISOString();
+
+    const finalUpdatedAt =
+      schema.updatedAt ??
+      schema.lastDeployedAt ??
+      vercelInfo?.updatedAt ??
+      repo.updated_at ??
+      new Date().toISOString();
+
+    const defaultStack = [
+      ...(vercelInfo?.framework ? [vercelInfo.framework] : []),
+      ...(repo.language ? [repo.language] : []),
+      ...(Array.isArray(repo.topics) ? repo.topics : []),
+    ];
+    const uniqueDefaultStack = [...new Set(defaultStack.filter(Boolean))];
+
+    const finalStack =
+      Array.isArray(schema.stack) && schema.stack.length > 0
+        ? schema.stack
+        : uniqueDefaultStack;
+
+    const languagePercentages = Array.isArray(schema.languagePercentages)
+      ? schema.languagePercentages
+      : await getRepoLanguages(repo.owner.login, repo.name);
+
+    const isPublic =
+      schema.public !== undefined ? schema.public : !repo.private;
+
+    const finalGithubUrl =
+      schema.githubUrl !== undefined
+        ? schema.githubUrl
+        : isPublic
+          ? repo.html_url
+          : null;
 
     finalProjects.push({
-      id: repo.id,
-      repoName: repo.name,
-      title: schema.title || repo.name,
-      description: schema.description || repo.description || "",
-      stack: Array.isArray(schema.stack) ? schema.stack : [],
-      icon: rawUrl || "",
+      id: targetId,
+      status: finalStatus,
+      repoName: targetRepoName,
+      title: schema.title ?? vercelInfo?.name ?? targetRepoName,
+      description: schema.description ?? repo.description ?? "",
+      category: schema.category ?? "",
+      tags: Array.isArray(schema.tags) ? schema.tags : [],
+      pinned: pinned,
+      stack: finalStack,
+      languagePercentages,
+      icon: rawUrl || schema.icon || "",
       url: finalUrl,
-      githubUrl: repo.private ? null : repo.html_url,
-      public: !repo.private,
-      listed: schema.listed ?? true,
-      stars: repo.stargazers_count,
-      lastDeployedAt: finalDate,
+      githubUrl: finalGithubUrl,
+      public: isPublic,
+      stars: schema.stars ?? repo.stargazers_count ?? 0,
+      forks: schema.forks ?? repo.forks_count ?? 0,
+      watchers: schema.watchers ?? repo.watchers_count ?? 0,
+      openIssues: schema.openIssues ?? repo.open_issues_count ?? 0,
+      createdAt: finalCreatedAt,
+      updatedAt: finalUpdatedAt,
     });
   }
 
-  finalProjects.sort(
-    (a, b) => new Date(b.lastDeployedAt) - new Date(a.lastDeployedAt),
-  );
+  const statusOrder = {
+    active: 1,
+    building: 2,
+    maintenance: 3,
+    error: 4,
+    archived: 5,
+    disabled: 6,
+  };
 
-  await fs.writeFile("projects.json", JSON.stringify(finalProjects, null, 2));
+  finalProjects.sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+
+    const orderA = statusOrder[a.status] ?? 99;
+    const orderB = statusOrder[b.status] ?? 99;
+    if (orderA !== orderB) return orderA - orderB;
+
+    return new Date(b.updatedAt) - new Date(a.updatedAt);
+  });
+
+  await fs.writeFile(CONFIG_FILE, JSON.stringify(updatedConfig, null, 2));
+  await fs.writeFile(PROJECTS_FILE, JSON.stringify(finalProjects, null, 2));
   console.log(
-    `Berhasil mencatat ${finalProjects.length} proyek ke projects.json dan menyalin ikon proyek ke folder ${ICONS_DIR}`,
+    `Berhasil mencatat ${finalProjects.length} proyek ke ${PROJECTS_FILE}, memperbarui ${CONFIG_FILE}, dan menyalin ikon ke folder ${ICONS_DIR}`,
   );
-
   await cleanupOrphanedIcons(activeIconFiles);
 }
 
