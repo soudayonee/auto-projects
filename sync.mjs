@@ -30,6 +30,15 @@ const vercelHeaders = {
   Authorization: `Bearer ${VERCEL_TOKEN}`,
 };
 
+function formatProjectId(repoName, githubRepoId) {
+  const cleanSlug = repoName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const shortId = Number(githubRepoId).toString(36);
+  return (prefix = "prj") => `${prefix}-${cleanSlug}--${shortId}`;
+}
+
 async function loadJsonFile(filePath, defaultValue = []) {
   try {
     const content = await fs.readFile(filePath, "utf-8");
@@ -162,7 +171,7 @@ async function copyProjectIcon(owner, repoName, projectId, iconPath) {
 
   if (!res.ok) {
     console.warn(
-      `Gagal mengambil ikon proyek dari ${repoName}/${cleanPath}: ${res.statusText}`,
+      `Gagal mengambil ikon proyek dari ${repoName}/${cleanPath}:${res.statusText}`,
     );
     return { localPath: null, rawUrl: "" };
   }
@@ -186,7 +195,7 @@ async function cleanupOrphanedIcons(activeIconFiles) {
       if (!activeIconFiles.has(file)) {
         await fs.unlink(path.join(ICONS_DIR, file));
         console.log(
-          `Berhasil menghapus ikon lama: ${file} dari folder ${ICONS_DIR}`,
+          `Berhasil menghapus ikon lama: ${file} dari folder${ICONS_DIR}`,
         );
       }
     }
@@ -263,8 +272,25 @@ async function main() {
   for (const repo of repos) {
     if (repo.name.toLowerCase() === CENTRAL_REPO_NAME.toLowerCase()) continue;
 
-    const currentConfig = configMap.get(repo.id);
-    const cachedProject = existingProjectMap.get(repo.id);
+    const schema = await getProjectSchema(repo.owner.login, repo.name);
+    if (!schema || schema.listed === false) continue;
+
+    const targetRepoName = schema.repoName ?? repo.name;
+    const makeId = formatProjectId(targetRepoName, repo.id);
+    const repoId = schema.id ?? makeId("prj");
+    const iconId = makeId("icn");
+
+    const currentConfig =
+      configMap.get(repoId) ||
+      existingConfig.find(
+        (item) => item.repoName?.toLowerCase() === targetRepoName.toLowerCase(),
+      );
+    const cachedProject = existingProjectMap.get(currentConfig?.id || repoId);
+
+    if (currentConfig && currentConfig.listed === false) {
+      updatedConfig.push(currentConfig);
+      continue;
+    }
 
     if (
       currentConfig &&
@@ -272,35 +298,19 @@ async function main() {
       cachedProject
     ) {
       updatedConfig.push(currentConfig);
-      if (currentConfig.listed !== false) {
-        finalProjects.push(cachedProject);
-        if (
-          cachedProject.icon &&
-          cachedProject.icon.includes(`/${ICONS_DIR}/`)
-        ) {
-          activeIconFiles.add(path.basename(cachedProject.icon));
-        }
+      finalProjects.push(cachedProject);
+      if (cachedProject.icon && cachedProject.icon.includes(`/${ICONS_DIR}/`)) {
+        activeIconFiles.add(path.basename(cachedProject.icon));
       }
       continue;
     }
 
-    const schema = (await getProjectSchema(repo.owner.login, repo.name)) || {};
-
-    const isListed =
-      currentConfig?.listed !== undefined
-        ? currentConfig.listed
-        : schema.listed !== undefined
-          ? schema.listed
-          : true;
-
+    const isListed = currentConfig?.listed ?? true;
     const checkPeriodically = currentConfig?.checkPeriodically ?? true;
     const pinned = schema.pinned ?? currentConfig?.pinned ?? false;
 
-    const targetRepoName = schema.repoName ?? repo.name;
-    const targetId = schema.id ?? repo.id;
-
     updatedConfig.push({
-      id: targetId,
+      id: repoId,
       repoName: targetRepoName,
       listed: isListed,
       checkPeriodically,
@@ -317,7 +327,7 @@ async function main() {
     const { localPath, rawUrl } = await copyProjectIcon(
       repo.owner.login,
       repo.name,
-      targetId,
+      iconId,
       schema.icon,
     );
 
@@ -369,7 +379,7 @@ async function main() {
           : null;
 
     finalProjects.push({
-      id: targetId,
+      id: repoId,
       status: finalStatus,
       repoName: targetRepoName,
       title: schema.title ?? vercelInfo?.name ?? targetRepoName,
@@ -415,7 +425,7 @@ async function main() {
   await fs.writeFile(CONFIG_FILE, JSON.stringify(updatedConfig, null, 2));
   await fs.writeFile(PROJECTS_FILE, JSON.stringify(finalProjects, null, 2));
   console.log(
-    `Berhasil mencatat ${finalProjects.length} proyek ke ${PROJECTS_FILE}, memperbarui ${CONFIG_FILE}, dan menyalin ikon ke folder ${ICONS_DIR}`,
+    `Berhasil mencatat ${finalProjects.length} proyek ke${PROJECTS_FILE}, memperbarui ${CONFIG_FILE}, dan menyalin ikon ke folder${ICONS_DIR}`,
   );
   await cleanupOrphanedIcons(activeIconFiles);
 }
