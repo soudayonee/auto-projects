@@ -1,5 +1,48 @@
 [
   {
+    "id": "prj-kotonogi-api--ikexu9",
+    "status": "active",
+    "repoName": "kotonogi-api",
+    "title": "Kotonogi API",
+    "description": "Public API untuk pembelajaran huruf Jepang (Hiragana & Katakana) beserta variasinya seperti Dakuten, Handakuten, dan Yoon. Seluruh data bersifat statis dan menggunakan SVG untuk gambar serta animasi. Asset SVG mempunyai copyright yang bisa diperiksa di bagian atas file masing-masing.",
+    "category": "API",
+    "tags": [
+      "API",
+      "Node.js",
+      "Express.js",
+      "Nodemon",
+      "Hiragana",
+      "Katakana",
+      "Dakuten",
+      "Handakuten",
+      "Yoon",
+      "SVG",
+      "Static Data"
+    ],
+    "pinned": true,
+    "stack": [
+      "Node.js",
+      "Express.js",
+      "Nodemon"
+    ],
+    "languagePercentages": [
+      {
+        "language": "JavaScript",
+        "percentage": 100
+      }
+    ],
+    "icon": "https://raw.githubusercontent.com/soudayonee/auto-projects/main/icons/icn-kotonogi-api--ikexu9.png",
+    "url": "",
+    "githubUrl": "https://github.com/soudayonee/kotonogi-api",
+    "public": true,
+    "stars": 2,
+    "forks": 0,
+    "watchers": 2,
+    "openIssues": 0,
+    "createdAt": "2025-12-25T10:12:12.865Z",
+    "updatedAt": "2026-10-21T15:16:15.483Z"
+  },
+  {
     "id": "prj-hiro-store--m5px0v",
     "status": "active",
     "repoName": "hiro-store",
@@ -53,48 +96,5 @@
     "openIssues": 0,
     "createdAt": "2026-08-19T17:41:39Z",
     "updatedAt": "2026-10-21T15:24:18Z"
-  },
-  {
-    "id": "prj-kotonogi-api--ikexu9",
-    "status": "active",
-    "repoName": "kotonogi-api",
-    "title": "Kotonogi API",
-    "description": "Public API untuk pembelajaran huruf Jepang (Hiragana & Katakana) beserta variasinya seperti Dakuten, Handakuten, dan Yoon. Seluruh data bersifat statis dan menggunakan SVG untuk gambar serta animasi. Asset SVG mempunyai copyright yang bisa diperiksa di bagian atas file masing-masing.",
-    "category": "API",
-    "tags": [
-      "API",
-      "Node.js",
-      "Express.js",
-      "Nodemon",
-      "Hiragana",
-      "Katakana",
-      "Dakuten",
-      "Handakuten",
-      "Yoon",
-      "SVG",
-      "Static Data"
-    ],
-    "pinned": false,
-    "stack": [
-      "Node.js",
-      "Express.js",
-      "Nodemon"
-    ],
-    "languagePercentages": [
-      {
-        "language": "JavaScript",
-        "percentage": 100
-      }
-    ],
-    "icon": "https://raw.githubusercontent.com/soudayonee/auto-projects/main/icons/icn-kotonogi-api--ikexu9.png",
-    "url": "",
-    "githubUrl": "https://github.com/soudayonee/kotonogi-api",
-    "public": true,
-    "stars": 2,
-    "forks": 0,
-    "watchers": 2,
-    "openIssues": 0,
-    "createdAt": "2025-12-25T10:12:12.865Z",
-    "updatedAt": "2026-10-21T15:16:15.483Z"
   }
 ]
