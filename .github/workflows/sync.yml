@@ -35,7 +35,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p icons
-          git add projects.json icons/
+          git add projects.json projects-config.json icons/
           if git diff --staged --quiet; then
             echo "Tidak ada perubahan data proyek atau ikon."
           else

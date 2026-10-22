@@ -30,6 +30,10 @@ const vercelHeaders = {
   Authorization: `Bearer ${VERCEL_TOKEN}`,
 };
 
+function nonEmpty(value) {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
 function formatProjectId(repoName, githubRepoId) {
   const cleanSlug = repoName
     .toLowerCase()
@@ -37,6 +41,26 @@ function formatProjectId(repoName, githubRepoId) {
     .replace(/^-+|-+$/g, "");
   const shortId = Number(githubRepoId).toString(36);
   return (prefix = "prj") => `${prefix}-${cleanSlug}--${shortId}`;
+}
+
+function resolveProjectUrl(schema, vercelInfo, repo, targetRepoName) {
+  const fromSchema = nonEmpty(schema.url);
+  if (fromSchema) return fromSchema;
+
+  const fromVercel = nonEmpty(vercelInfo?.url);
+  if (fromVercel) return fromVercel;
+
+  const fromHomepage = nonEmpty(repo.homepage);
+  if (fromHomepage) {
+    return /^https?:\/\//i.test(fromHomepage)
+      ? fromHomepage
+      : `https://${fromHomepage}`;
+  }
+
+  const descUrlMatch = repo.description?.match(/https?:\/\/[^\s)]+/i);
+  if (descUrlMatch) return descUrlMatch[0];
+
+  return `https://${targetRepoName.toLowerCase()}.vercel.app`;
 }
 
 async function loadJsonFile(filePath, defaultValue = []) {
@@ -156,13 +180,17 @@ async function getProjectSchema(owner, repoName) {
 }
 
 async function copyProjectIcon(owner, repoName, projectId, iconPath) {
-  if (!iconPath) return { localPath: null, rawUrl: "" };
+  const cleanIconPath = nonEmpty(iconPath);
+  if (!cleanIconPath) return { localPath: null, rawUrl: "" };
 
-  if (iconPath.startsWith("http://") || iconPath.startsWith("https://")) {
-    return { localPath: null, rawUrl: iconPath };
+  if (
+    cleanIconPath.startsWith("http://") ||
+    cleanIconPath.startsWith("https://")
+  ) {
+    return { localPath: null, rawUrl: cleanIconPath };
   }
 
-  const cleanPath = iconPath.replace(/^\/+/, "");
+  const cleanPath = cleanIconPath.replace(/^\/+/, "");
   const endpoint = `${GITHUB_API_BASE}/repos/${owner}/${repoName}/contents/${cleanPath}`;
 
   const res = await fetch(endpoint, {
@@ -171,7 +199,7 @@ async function copyProjectIcon(owner, repoName, projectId, iconPath) {
 
   if (!res.ok) {
     console.warn(
-      `Gagal mengambil ikon proyek dari ${repoName}/${cleanPath}:${res.statusText}`,
+      `Gagal mengambil ikon proyek dari ${repoName}/${cleanPath}: ${res.statusText}`,
     );
     return { localPath: null, rawUrl: "" };
   }
@@ -195,7 +223,7 @@ async function cleanupOrphanedIcons(activeIconFiles) {
       if (!activeIconFiles.has(file)) {
         await fs.unlink(path.join(ICONS_DIR, file));
         console.log(
-          `Berhasil menghapus ikon lama: ${file} dari folder${ICONS_DIR}`,
+          `Berhasil menghapus ikon lama: ${file} dari folder ${ICONS_DIR}`,
         );
       }
     }
@@ -222,7 +250,8 @@ async function getRepoLanguages(owner, repoName) {
 }
 
 function getProjectStatus(schema, repo, vercelInfo) {
-  if (schema.status) return schema.status;
+  const customStatus = nonEmpty(schema.status);
+  if (customStatus) return customStatus;
 
   if (repo.archived) return "archived";
   if (repo.disabled) return "disabled";
@@ -275,9 +304,9 @@ async function main() {
     const schema = await getProjectSchema(repo.owner.login, repo.name);
     if (!schema || schema.listed === false) continue;
 
-    const targetRepoName = schema.repoName ?? repo.name;
+    const targetRepoName = nonEmpty(schema.repoName) ?? repo.name;
     const makeId = formatProjectId(targetRepoName, repo.id);
-    const repoId = schema.id ?? makeId("prj");
+    const repoId = nonEmpty(schema.id) ?? makeId("prj");
     const iconId = makeId("icn");
 
     const currentConfig =
@@ -336,20 +365,22 @@ async function main() {
     if (localPath) activeIconFiles.add(localPath);
 
     const finalStatus = getProjectStatus(schema, repo, vercelInfo);
-
-    const fallbackUrl = `https://${targetRepoName.toLowerCase()}.vercel.app`;
-    const finalUrl =
-      schema.url ?? vercelInfo?.url ?? (repo.homepage || fallbackUrl);
+    const finalUrl = resolveProjectUrl(
+      schema,
+      vercelInfo,
+      repo,
+      targetRepoName,
+    );
 
     const finalCreatedAt =
-      schema.createdAt ??
+      nonEmpty(schema.createdAt) ??
       vercelInfo?.createdAt ??
       repo.created_at ??
       new Date().toISOString();
 
     const finalUpdatedAt =
-      schema.updatedAt ??
-      schema.lastDeployedAt ??
+      nonEmpty(schema.updatedAt) ??
+      nonEmpty(schema.lastDeployedAt) ??
       vercelInfo?.updatedAt ??
       repo.updated_at ??
       new Date().toISOString();
@@ -366,32 +397,30 @@ async function main() {
         ? schema.stack
         : uniqueDefaultStack;
 
-    const languagePercentages = Array.isArray(schema.languagePercentages)
-      ? schema.languagePercentages
-      : await getRepoLanguages(repo.owner.login, repo.name);
+    const languagePercentages =
+      Array.isArray(schema.languagePercentages) &&
+      schema.languagePercentages.length > 0
+        ? schema.languagePercentages
+        : await getRepoLanguages(repo.owner.login, repo.name);
 
     const isPublic =
       schema.public !== undefined ? schema.public : !repo.private;
 
     const finalGithubUrl =
-      schema.githubUrl !== undefined
-        ? schema.githubUrl
-        : isPublic
-          ? repo.html_url
-          : null;
+      nonEmpty(schema.githubUrl) ?? (isPublic ? repo.html_url : null);
 
     finalProjects.push({
       id: repoId,
       status: finalStatus,
       repoName: targetRepoName,
-      title: schema.title ?? vercelInfo?.name ?? targetRepoName,
-      description: schema.description ?? repo.description ?? "",
-      category: schema.category ?? "",
+      title: nonEmpty(schema.title) ?? vercelInfo?.name ?? targetRepoName,
+      description: nonEmpty(schema.description) ?? repo.description ?? "",
+      category: nonEmpty(schema.category) ?? "",
       tags: Array.isArray(schema.tags) ? schema.tags : [],
       pinned: pinned,
       stack: finalStack,
       languagePercentages,
-      icon: rawUrl || schema.icon || "",
+      icon: rawUrl || nonEmpty(schema.icon) || "",
       url: finalUrl,
       githubUrl: finalGithubUrl,
       public: isPublic,
@@ -427,7 +456,7 @@ async function main() {
   await fs.writeFile(CONFIG_FILE, JSON.stringify(updatedConfig, null, 2));
   await fs.writeFile(PROJECTS_FILE, JSON.stringify(finalProjects, null, 2));
   console.log(
-    `Berhasil mencatat ${finalProjects.length} proyek ke${PROJECTS_FILE}, memperbarui ${CONFIG_FILE}, dan menyalin ikon ke folder${ICONS_DIR}`,
+    `Berhasil mencatat ${finalProjects.length} proyek ke ${PROJECTS_FILE}, memperbarui ${CONFIG_FILE}, dan menyalin ikon ke folder ${ICONS_DIR}`,
   );
   await cleanupOrphanedIcons(activeIconFiles);
 }
