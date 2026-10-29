@@ -1,11 +1,19 @@
 [
   {
+    "id": "prj-kocok-tim--ns5ein",
+    "repoName": "kocok-tim",
+    "listed": true,
+    "checkPeriodically": true,
+    "pinned": true,
+    "lastCheckedAt": "2026-10-29T06:08:14.414Z"
+  },
+  {
     "id": "prj-kotonogi-api--ikexu9",
     "repoName": "kotonogi-api",
     "listed": true,
     "checkPeriodically": true,
     "pinned": true,
-    "lastCheckedAt": "2026-10-29T02:58:14.767Z"
+    "lastCheckedAt": "2026-10-29T06:08:15.297Z"
   },
   {
     "id": "prj-hiro-store--m5px0v",
@@ -13,6 +21,6 @@
     "listed": true,
     "checkPeriodically": true,
     "pinned": false,
-    "lastCheckedAt": "2026-10-29T02:58:15.214Z"
+    "lastCheckedAt": "2026-10-29T06:08:16.074Z"
   }
 ]

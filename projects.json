@@ -1,5 +1,51 @@
 [
   {
+    "id": "prj-kocok-tim--ns5ein",
+    "status": "active",
+    "repoName": "kocok-tim",
+    "title": "KocokTim",
+    "description": "Acak dan bagi daftar peserta menjadi beberapa kelompok dengan cepat, adil, dan tersimpan otomatis di browser.",
+    "category": "Tools",
+    "tags": [
+      "Random",
+      "Grouping",
+      "Team",
+      "Shuffle",
+      "Fair",
+      "LocalStorage",
+      "Fisher-Yates",
+      "JavaScript"
+    ],
+    "pinned": true,
+    "stack": [
+      "JavaScript"
+    ],
+    "languagePercentages": [
+      {
+        "language": "JavaScript",
+        "percentage": 46.94
+      },
+      {
+        "language": "HTML",
+        "percentage": 29.68
+      },
+      {
+        "language": "CSS",
+        "percentage": 23.38
+      }
+    ],
+    "icon": "https://raw.githubusercontent.com/soudayonee/auto-projects/main/icons/icn-kocok-tim--ns5ein.jpg",
+    "url": "https://www.kocok-tim.soudayonee.tech/",
+    "githubUrl": "https://github.com/soudayonee/kocok-tim",
+    "public": true,
+    "stars": 0,
+    "forks": 0,
+    "watchers": 0,
+    "openIssues": 0,
+    "createdAt": "2026-10-29T05:51:05.228Z",
+    "updatedAt": "2026-10-29T05:51:32.348Z"
+  },
+  {
     "id": "prj-kotonogi-api--ikexu9",
     "status": "active",
     "repoName": "kotonogi-api",
