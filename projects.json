@@ -77,7 +77,7 @@
         "percentage": 100
       }
     ],
-    "icon": "public/kotonogi-logo.png",
+    "icon": "https://raw.githubusercontent.com/soudayonee/auto-projects/main/icons/icn-kotonogi-api--ikexu9.png",
     "url": "https://www.kotonogi.web.id",
     "githubUrl": "https://github.com/soudayonee/kotonogi-api",
     "public": true,
